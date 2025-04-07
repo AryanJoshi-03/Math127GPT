@@ -1,20 +1,17 @@
-# integration.py
+# src/backend/app.py
 import os
 import streamlit as st
-import openai
 from dotenv import load_dotenv
 import boto3
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
-from langchain_openai import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Load environment variables
 load_dotenv()
 
-# === Backend Functions for Vector Search and AI Helper ===
 class MathAssistant:
     def __init__(self):
         self.embeddings = self.initialize_openai()
@@ -25,14 +22,14 @@ class MathAssistant:
         OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
         
         if not OPENAI_API_KEY:
-            st.error("❌ Missing OpenAI API key. Please check your .env file.")
+            print("❌ Missing OpenAI API key. Please check your .env file.")
             return None
         
         try:
             embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
             return embeddings
         except Exception as e:
-            st.error(f"❌ Failed to initialize OpenAI: {e}")
+            print(f"❌ Failed to initialize OpenAI: {e}")
             return None
 
     def initialize_aws_s3(self):
@@ -40,10 +37,10 @@ class MathAssistant:
         AWS_REGION = os.getenv("AWS_REGION")
         AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
         AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-        AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
+        S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
         
-        if not all([AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_BUCKET_NAME]):
-            st.error("❌ Missing one or more AWS environment variables. Please check your .env file.")
+        if not all([AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET_NAME]):
+            print("❌ Missing one or more AWS environment variables.")
             return None, None
         
         try:
@@ -53,32 +50,43 @@ class MathAssistant:
                 aws_access_key_id=AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=AWS_SECRET_ACCESS_KEY
             )
-            return s3_client, AWS_BUCKET_NAME
+            return s3_client, S3_BUCKET_NAME
         except Exception as e:
-            st.error(f"❌ Failed to initialize AWS S3: {e}")
+            print(f"❌ Failed to initialize AWS S3: {e}")
             return None, None
+
+    def list_pdfs_from_s3(self, s3_client, bucket_name):
+        """List all PDFs in S3 bucket"""
+        try:
+            response = s3_client.list_objects_v2(Bucket=bucket_name)
+            return [obj["Key"] for obj in response.get("Contents", []) if obj["Key"].endswith(".pdf")]
+        except Exception as e:
+            print(f"❌ Error listing PDFs: {e}")
+            return []
 
     def download_pdfs(self, s3_client, bucket_name):
         """Download PDFs from S3 bucket"""
         try:
-            with st.spinner("📥 Downloading PDFs from S3..."):
-                response = s3_client.list_objects_v2(Bucket=bucket_name)
-                
-                if "Contents" not in response:
-                    st.warning("⚠️ No PDFs found in S3 bucket!")
-                    return False
-                
-                for obj in response.get("Contents", []):
-                    file_name = obj["Key"]
-                    if file_name.endswith(".pdf"):
-                        # Create downloads directory if it doesn't exist
-                        os.makedirs("downloads", exist_ok=True)
-                        local_path = os.path.join("downloads", file_name)
-                        s3_client.download_file(bucket_name, file_name, local_path)
+            print("📥 Downloading PDFs from S3...")
+            pdf_files = self.list_pdfs_from_s3(s3_client, bucket_name)
+            
+            if not pdf_files:
+                print("⚠️ No PDFs found in S3 bucket!")
+                return False
+            
+            # Create downloads directory if it doesn't exist
+            os.makedirs("downloads", exist_ok=True)
+            
+            for pdf_key in pdf_files:
+                local_path = os.path.join("downloads", pdf_key)
+                # Create subdirectories if needed
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                s3_client.download_file(bucket_name, pdf_key, local_path)
+                print(f"✅ Downloaded: {pdf_key}")
             
             return True
         except Exception as e:
-            st.error(f"❌ Failed to download PDFs from S3: {str(e)}")
+            print(f"❌ Failed to download PDFs from S3: {str(e)}")
             return False
 
     def process_pdfs(self):
@@ -86,15 +94,16 @@ class MathAssistant:
         docs = []
         
         try:
-            with st.spinner("📄 Processing PDFs..."):
-                downloads_dir = "downloads"
-                if not os.path.exists(downloads_dir):
-                    st.warning("⚠️ Downloads directory not found!")
-                    return []
+            print("📄 Processing PDFs...")
+            downloads_dir = "downloads"
+            if not os.path.exists(downloads_dir):
+                print("⚠️ Downloads directory not found!")
+                return []
 
-                for file in os.listdir(downloads_dir):
+            for root, _, files in os.walk(downloads_dir):
+                for file in files:
                     if file.endswith(".pdf"):
-                        pdf_path = os.path.join(downloads_dir, file)
+                        pdf_path = os.path.join(root, file)
                         loader = PyPDFLoader(pdf_path)
                         documents = loader.load()
                         
@@ -104,36 +113,36 @@ class MathAssistant:
                         
                         docs.extend(documents)
 
-                if not docs:
-                    st.warning("⚠️ No PDFs processed!")
-                    return []
-                    
-                # Split documents into smaller chunks for better retrieval
-                text_splitter = RecursiveCharacterTextSplitter(
-                    chunk_size=1000,
-                    chunk_overlap=200,
-                    length_function=len
-                )
+            if not docs:
+                print("⚠️ No PDFs processed!")
+                return []
                 
-                chunks = text_splitter.split_documents(docs)
-                return chunks
+            # Split documents into smaller chunks for better retrieval
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200,
+                length_function=len
+            )
+            
+            chunks = text_splitter.split_documents(docs)
+            return chunks
         except Exception as e:
-            st.error(f"❌ Failed to process PDFs: {str(e)}")
+            print(f"❌ Failed to process PDFs: {str(e)}")
             return []
 
     def create_vector_store(self, chunks):
         """Create in-memory vector store"""
         try:
-            with st.spinner("🧠 Creating vector store..."):
-                if not chunks:
-                    st.warning("⚠️ No document chunks to index!")
-                    return None
-                
-                # Create FAISS vector store from documents
-                vector_store = FAISS.from_documents(chunks, self.embeddings)
-                return vector_store
+            print("🧠 Creating vector store...")
+            if not chunks:
+                print("⚠️ No document chunks to index!")
+                return None
+            
+            # Create FAISS vector store from documents
+            vector_store = FAISS.from_documents(chunks, self.embeddings)
+            return vector_store
         except Exception as e:
-            st.error(f"❌ Failed to create vector store: {str(e)}")
+            print(f"❌ Failed to create vector store: {str(e)}")
             return None
 
     def save_vector_store(self, vector_store, filename="pdf_vectorstore.faiss"):
@@ -141,9 +150,10 @@ class MathAssistant:
         if vector_store:
             try:
                 vector_store.save_local(filename)
+                print("✅ Vector store saved successfully!")
                 return True
             except Exception as e:
-                st.error(f"❌ Failed to save vector store: {str(e)}")
+                print(f"❌ Failed to save vector store: {str(e)}")
                 return False
         return False
 
@@ -151,22 +161,13 @@ class MathAssistant:
         """Load existing vector store if available"""
         try:
             if os.path.exists(filename):
-                with st.spinner("⏳ Loading existing vector store..."):
-                    vector_store = FAISS.load_local(filename, self.embeddings)
-                    return vector_store
-            else:
-                # Create a new vector store if no existing one
-                s3_client, bucket_name = self.initialize_aws_s3()
-                if s3_client and bucket_name:
-                    if self.download_pdfs(s3_client, bucket_name):
-                        chunks = self.process_pdfs()
-                        vector_store = self.create_vector_store(chunks)
-                        if vector_store:
-                            self.save_vector_store(vector_store)
-                            return vector_store
-                return None
+                print("⏳ Loading existing vector store...")
+                vector_store = FAISS.load_local(filename, self.embeddings)
+                print("✅ Loaded existing vector store!")
+                return vector_store
+            return None
         except Exception as e:
-            st.error(f"❌ Failed to load vector store: {str(e)}")
+            print(f"❌ Failed to load vector store: {str(e)}")
             return None
 
     def load_or_create_vector_store(self):
@@ -175,7 +176,7 @@ class MathAssistant:
         vector_store = self.load_vector_store()
         
         if not vector_store:
-            st.warning("Could not load existing vector store. Creating a new one...")
+            print("Creating a new vector store...")
             s3_client, bucket_name = self.initialize_aws_s3()
             if s3_client and bucket_name:
                 if self.download_pdfs(s3_client, bucket_name):
@@ -186,13 +187,13 @@ class MathAssistant:
         
         return vector_store
 
-    def get_answer(self, query, help_mode):
+    def get_answer(self, query, help_mode="General"):
         """Enhanced query method with context-aware prompting"""
         OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
         
         try:
             if not self.vector_store:
-                st.warning("⚠️ No vector store found!")
+                print("⚠️ No vector store found!")
                 return None
             
             # Create a retriever from the vector store
@@ -241,9 +242,9 @@ class MathAssistant:
                 return_source_documents=True  # Return source documents for citations
             )
             
-            with st.spinner("🤔 Generating answer..."):
-                enhanced_query = custom_prompt.format(query=query)
-                result = qa_chain({"query": enhanced_query})
+            print("🤔 Generating answer...")
+            enhanced_query = custom_prompt.format(query=query)
+            result = qa_chain({"query": enhanced_query})
             
             answer = result["result"]
             sources = [doc.metadata.get("source", "Unknown") for doc in result["source_documents"]]
@@ -254,5 +255,19 @@ class MathAssistant:
                 "sources": unique_sources
             }
         except Exception as e:
-            st.error(f"❌ Failed to get answer: {str(e)}")
+            print(f"❌ Failed to get answer: {str(e)}")
             return None
+
+# For testing the class when run directly
+if __name__ == "__main__":
+    assistant = MathAssistant()
+    
+    # Test query
+    test_query = "What is the derivative of a polynomial function?"
+    result = assistant.get_answer(test_query)
+    
+    if result:
+        print("\n\n💡 Answer:", result["answer"])
+        print("\n📚 Sources:", ", ".join(result["sources"]))
+    else:
+        print("❌ No answer generated.")

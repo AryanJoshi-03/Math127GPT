@@ -1,6 +1,12 @@
-# app.py (main file)
+# src/frontend/main.py
 import streamlit as st
 import os
+import sys
+import time
+
+# Add parent directory to path to import backend module
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from backend.app import MathAssistant
 
 # === App Configuration ===
 st.set_page_config(
@@ -138,8 +144,10 @@ st.markdown("""
         margin: 10px 0;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         transition: all 0.2s ease;
+        cursor: pointer; /* Shows hand cursor on hover */
+        color: #4a5568; /* Change this to your preferred text color */
     }
-    
+        
     .card:hover {
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         transform: translateY(-2px);
@@ -182,6 +190,41 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+    /* Style the button to look like a card */
+    div[data-testid="stButton"] > button {
+        background-color: white;
+        color: #4a5568;
+        border-radius: var(--radius);
+        padding: 20px;
+        margin: 10px 0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s ease;
+        text-align: left;
+        display: block;
+        width: 100%;
+    }
+
+    div[data-testid="stButton"] > button:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+        background-color: white; /* Keep white on hover */
+    }
+
+    /* Fix the markdown styling inside buttons */
+    div[data-testid="stButton"] button h2, 
+    div[data-testid="stButton"] button h3 {
+        margin-top: 0;
+        color: #4a5568;
+    }
+
+    div[data-testid="stButton"] button p {
+        color: #4a5568;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # === Initialize session state ===
 if 'navigation_path' not in st.session_state:
     st.session_state.navigation_path = []
@@ -203,6 +246,11 @@ if 'help_mode' not in st.session_state:
     
 if 'step_index' not in st.session_state:
     st.session_state.step_index = 0
+
+# Initialize MathAssistant in session state
+if 'assistant' not in st.session_state:
+    with st.spinner("🧠 Initializing AI Assistant..."):
+        st.session_state.assistant = MathAssistant()
 
 # === Navigation Function ===
 def navigate_to(destination, chapter=None, section=None, question=None, help_mode=None):
@@ -331,22 +379,39 @@ def render_questions():
         "Determine if the series Σ(1/n²) from n=1 to infinity converges or diverges"
     ]
     
-    for i, question in enumerate(questions[:3]):  # Just show 3 questions for the demo
-        st.markdown(f"""
-        <div class='card'>
-            <h2>Question {i+1}</h2>
-            <p>{question}</p>
-            <div style='text-align: right;'>
-                <button class='secondary-button' onclick='javascript:void(0);'>View Details</button>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # for i, question in enumerate(questions[:3]):  # Just show 3 questions for the demo
+    #     card_id = f"q_{i+1}"
         
-        if st.button(f"Select Question {i+1}", key=f"q_{i+1}"):
-            navigate_to("questions", 
-                        chapter=st.session_state.current_chapter, 
-                        section=st.session_state.current_section,
-                        question=i+1)
+    #     # Create unique key for this card
+    #     onclick_function = f"document.getElementById('button-{card_id}').click()"
+        
+    #     st.markdown(f"""
+    #     <div class='card' onclick="{onclick_function}" style="color: #4a5568;">
+    #         <h2>Question {i+1}</h2>
+    #         <p>{question}</p>
+    #     </div>
+    #     """, unsafe_allow_html=True)
+        
+    #     # Hidden button that will be triggered when card is clicked
+    #     if st.button("", key=f"button-{card_id}"):
+    #         navigate_to("questions", 
+    #             chapter=st.session_state.current_chapter, 
+    #             section=st.session_state.current_section,
+    #             question=i+1)
+    
+    for i, question in enumerate(questions[:3]):  # Just show 3 questions for the demo
+        card_id = f"q_{i+1}"
+        
+        col1, col2 = st.columns([10, 1])
+        
+        # Use a container for styling
+        with col1:
+            
+            if st.button(f"Question {i+1}: {question}", key=card_id):
+                navigate_to("questions", 
+                    chapter=st.session_state.current_chapter, 
+                    section=st.session_state.current_section,
+                    question=i+1)
 
     st.markdown("<div style='margin-top: 30px;'>", unsafe_allow_html=True)
     if st.button("← Back to Sections", key="back_to_sections"):
@@ -386,50 +451,95 @@ def render_question_detail():
     
     col1, col2, col3 = st.columns(3)
     
+    prompt1 = "I don't know where to start with this problem."
+    
     with col1:
-        st.markdown("""
-        <div class='card'>
-            <h3>I'm completely lost</h3>
-            <p>I don't know where to start with this problem.</p>
-        </div>
-        """, unsafe_allow_html=True)
         
-        if st.button("Get Conceptual Help", key="help_lost"):
+        # if st.button(f"Question {i+1}: {question}", key=card_id):
+        #         navigate_to("questions", 
+        #             chapter=st.session_state.current_chapter, 
+        #             section=st.session_state.current_section,
+        #             question=i+1)
+        
+        # Create a container that looks like a card but is actually a button
+        if st.button(
+            f"""I'm completely lost and I don't know where to start with this problem""", 
+            # These args customize the button to look like a card
+            use_container_width=True
+            ): 
             navigate_to("question_detail", 
                       chapter=st.session_state.current_chapter,
                       section=st.session_state.current_section,
                       question=question_num,
                       help_mode="Conceptual Help")
+        
+        # st.markdown("""
+        # <div class='card'>
+        #     <h3>I'm completely lost</h3>
+        #     <p>I don't know where to start with this problem.</p>
+        # </div>
+        # """, unsafe_allow_html=True)
+        
+        # if st.button("Get Conceptual Help", key="help_lost"):
+        #     navigate_to("question_detail", 
+        #               chapter=st.session_state.current_chapter,
+        #               section=st.session_state.current_section,
+        #               question=question_num,
+        #               help_mode="Conceptual Help")
             
     with col2:
-        st.markdown("""
-        <div class='card'>
-            <h3>I know the concept</h3>
-            <p>But I'm not sure how to apply it to this problem.</p>
-        </div>
-        """, unsafe_allow_html=True)
         
-        if st.button("Get Application Help", key="help_apply"):
+        if st.button(
+            f"""I know the concept but I'm not sure how to apply it to this problem""", 
+            # These args customize the button to look like a card
+            use_container_width=True
+            ): 
             navigate_to("question_detail", 
                       chapter=st.session_state.current_chapter,
                       section=st.session_state.current_section,
                       question=question_num,
-                      help_mode="Application Help")
+                      help_mode="Conceptual Help")
+        
+        # st.markdown("""
+        # <div class='card'>
+        #     <h3>I know the concept</h3>
+        #     <p>But I'm not sure how to apply it to this problem.</p>
+        # </div>
+        # """, unsafe_allow_html=True)
+        
+        # if st.button("Get Application Help", key="help_apply"):
+        #     navigate_to("question_detail", 
+        #               chapter=st.session_state.current_chapter,
+        #               section=st.session_state.current_section,
+        #               question=question_num,
+        #               help_mode="Application Help")
             
     with col3:
-        st.markdown("""
-        <div class='card'>
-            <h3>I need step-by-step</h3>
-            <p>Guide me through solving this problem step by step.</p>
-        </div>
-        """, unsafe_allow_html=True)
         
-        if st.button("Get Step-by-Step Help", key="help_steps"):
+        if st.button(
+            f"""I need step-by-step guidance to solve this problem""", 
+            # These args customize the button to look like a card
+            use_container_width=True
+            ): 
             navigate_to("question_detail", 
                       chapter=st.session_state.current_chapter,
                       section=st.session_state.current_section,
                       question=question_num,
                       help_mode="Step-by-Step")
+        
+        # st.markdown("""
+        # <div class='card'>
+        #     <h3>I need step-by-step</h3>
+        #     <p>Guide me through solving this problem step by step.</p>
+        # </div>
+        # """, unsafe_allow_html=True)
+        
+        # if st.button("Get Step-by-Step Help", key="help_steps"):
+        #     navigate_to("question_detail", 
+        #               chapter=st.session_state.current_chapter,
+        #               section=st.session_state.current_section,
+        #               question=question_num,
+        #               help_mode="Step-by-Step")
     
     st.markdown("<div style='margin-top: 30px;'>", unsafe_allow_html=True)
     if st.button("← Back to Questions", key="back_to_questions"):
@@ -440,16 +550,14 @@ def render_question_detail():
     
     st.markdown("</div>", unsafe_allow_html=True)
 
-# === AI Chat Interface ===
+# === AI Chat Interface (Integrated with MathAssistant) ===
 def render_chat_interface():
-    # st.markdown("<div class='app-container'>", unsafe_allow_html=True)
-    
     render_breadcrumb()
     
     question_num = st.session_state.current_question
     help_mode = st.session_state.help_mode
     
-    # Sample questions (in a real app, get this from your database)
+    # Sample questions
     questions = [
         "Find the derivative of f(x) = 3x² + 2x - 5",
         "Solve the equation 2x² - 8x + 7 = 0",
@@ -469,35 +577,21 @@ def render_chat_interface():
     </div>
     """, unsafe_allow_html=True)
     
-    # Chat display
-    st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
-    
     # Initialize first message if empty
     if len(st.session_state.chat_history) == 0:
         if help_mode == "Conceptual Help":
-            st.session_state.chat_history.append({
-                "role": "assistant",
-                "content": "I understand you're feeling lost with this problem. Let's start by understanding the core concepts involved. What specific part is confusing you about derivatives?"
-            })
+            initial_message = "I understand you're feeling lost with this problem. Let's start by understanding the core concepts involved. What specific part is confusing you about this problem?"
         elif help_mode == "Application Help":
-            st.session_state.chat_history.append({
-                "role": "assistant",
-                "content": "Great, so you understand the basic concept but need help applying it to this specific problem. Let's break down how to approach finding the derivative of a polynomial function."
-            })
+            initial_message = "Great, so you understand the basic concept but need help applying it to this specific problem. Let's break down how to approach this step by step."
         elif help_mode == "Step-by-Step":
-            # For step-by-step, we'll create a guided sequence
-            steps = [
-                "Let's solve this step by step. First, identify what function we're working with. We have f(x) = 3x² + 2x - 5. What rule do we need to apply to find the derivative?",
-                "Great! The power rule states that if f(x) = x^n, then f'(x) = n·x^(n-1). Let's apply this to each term. What's the derivative of the first term, 3x²?",
-                "Correct! Now let's find the derivative of the second term, 2x.",
-                "Perfect! And what about the last term, -5?",
-                "Excellent! Now let's combine all terms to get the complete derivative."
-            ]
+            initial_message = "Let's solve this step by step. First, let's understand what we're being asked to do in this problem."
+        else:
+            initial_message = "How can I help you with this problem?"
             
-            st.session_state.chat_history.append({
-                "role": "assistant",
-                "content": steps[0]
-            })
+        st.session_state.chat_history.append({
+            "role": "assistant",
+            "content": initial_message
+        })
     
     # Display chat messages
     for message in st.session_state.chat_history:
@@ -505,8 +599,6 @@ def render_chat_interface():
             st.markdown(f"<div class='user-message'>{message['content']}</div>", unsafe_allow_html=True)
         else:
             st.markdown(f"<div class='bot-message'>{message['content']}</div>", unsafe_allow_html=True)
-    
-    st.markdown("</div>", unsafe_allow_html=True)  # Close the chat-container div
     
     # Input form
     with st.form(key="chat_form", clear_on_submit=True):
@@ -520,38 +612,41 @@ def render_chat_interface():
                 "content": user_input
             })
             
-            # Handle step-by-step mode
-            if help_mode == "Step-by-Step":
-                steps = [
-                    "Let's solve this step by step. First, identify what function we're working with. We have f(x) = 3x² + 2x - 5. What rule do we need to apply to find the derivative?",
-                    "Great! The power rule states that if f(x) = x^n, then f'(x) = n·x^(n-1). Let's apply this to each term. What's the derivative of the first term, 3x²?",
-                    "Correct! Now let's find the derivative of the second term, 2x.",
-                    "Perfect! And what about the last term, -5?",
-                    "Excellent! Now let's combine all terms to get the complete derivative."
-                ]
-                
-                # Simple progression through steps
-                st.session_state.step_index += 1
-                if st.session_state.step_index < len(steps):
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": steps[st.session_state.step_index]
-                    })
-                else:
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": "Great job! You've successfully found the derivative of f(x) = 3x² + 2x - 5, which is f'(x) = 6x + 2. Would you like to try another problem?"
-                    })
-            else:
-                # For other modes, just echo a response
-                # In a real app, this would call your OpenAI API
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": "Thanks for your response! This is where the OpenAI API would generate a helpful response based on your input and the question context."
-                })
+            # Get assistant from session state
+            assistant = st.session_state.assistant
             
+            # For the query, combine the question with the user's input
+            query = f"Question: {question}\nStudent input: {user_input}\nHelp mode: {help_mode}"
+            
+            # Show typing indicator
+            message_placeholder = st.empty()
+            message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
+            
+            # Get answer from the assistant
+            result = assistant.get_answer(query, help_mode)
+            
+            if result:
+                # Format the answer with sources
+                answer = result["answer"]
+                sources = result["sources"]
+                
+                if sources:
+                    source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                    answer = answer + source_text
+            else:
+                answer = "I'm sorry, I couldn't generate an answer for that question."
+            
+            # Add assistant message to chat
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": answer
+            })
+            
+            # Remove typing indicator and refresh
+            message_placeholder.empty()
             st.rerun()
     
+    # Navigation button
     st.markdown("<div style='margin-top: 30px;'>", unsafe_allow_html=True)
     if st.button("← Change Help Mode", key="change_help"):
         # Reset chat when changing help mode
@@ -564,11 +659,18 @@ def render_chat_interface():
                 section=st.session_state.current_section,
                 question=question_num)
     st.markdown("</div>", unsafe_allow_html=True)
-    
-    # st.markdown("</div>", unsafe_allow_html=True)  # Close the app-container div
 
 # === Main Routing Logic ===
 def main():
+    # Sidebar with admin access
+    with st.sidebar:
+        st.markdown("## Admin Panel")
+        if st.button("Refresh PDF Database"):
+            with st.spinner("🔄 Refreshing PDF database..."):
+                # Re-initialize the assistant
+                st.session_state.assistant = MathAssistant()
+                st.success("✅ PDF database refreshed successfully!")
+    
     # Check current navigation state and render appropriate view
     current_view = st.session_state.navigation_path[0] if st.session_state.navigation_path else "home"
     
