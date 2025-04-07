@@ -372,7 +372,7 @@ def render_questions():
     # Example questions for each section
     # In a real app, these would come from your database
     questions = [
-        "Find the derivative of f(x) = 3x² + 2x - 5",
+        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. (a) Use the derivative to find all critical points. x1 , x2 , and x3. (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. x1 = _ is (a local maximum / a local minimum / neither). ( _ refers to value of x). Answer it in that format. Do the same for x2 and x3",
         "Solve the equation 2x² - 8x + 7 = 0",
         "Calculate the limit as x approaches 2 of (x² - 4)/(x - 2)",
         "Find the indefinite integral of g(x) = 5x⁴ - 3x² + 2x",
@@ -430,7 +430,7 @@ def render_question_detail():
     
     # Sample questions (in a real app, get this from your database)
     questions = [
-        "Find the derivative of f(x) = 3x² + 2x - 5",
+        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. (a) Use the derivative to find all critical points. x1 , x2 , and x3. (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. x1 = _ is (a local maximum / a local minimum / neither). ( _ refers to value of x). Answer it in that format. Do the same for x2 and x3",
         "Solve the equation 2x² - 8x + 7 = 0",
         "Calculate the limit as x approaches 2 of (x² - 4)/(x - 2)",
         "Find the indefinite integral of g(x) = 5x⁴ - 3x² + 2x",
@@ -559,7 +559,7 @@ def render_chat_interface():
     
     # Sample questions
     questions = [
-        "Find the derivative of f(x) = 3x² + 2x - 5",
+        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. (a) Use the derivative to find all critical points. x1 , x2 , and x3. (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. x1 = _ is (a local maximum / a local minimum / neither). ( _ refers to value of x). Answer it in that format. Do the same for x2 and x3",
         "Solve the equation 2x² - 8x + 7 = 0",
         "Calculate the limit as x approaches 2 of (x² - 4)/(x - 2)",
         "Find the indefinite integral of g(x) = 5x⁴ - 3x² + 2x",
