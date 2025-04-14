@@ -4,253 +4,262 @@ import os
 import sys
 import time
 
-# Add parent directory to path to import backend module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from backend.app import MathAssistant
+def run_frontend():
+    # IMPORTANT: This must be the first Streamlit command
+    st.set_page_config(
+        page_title="Math 127 Assistant",
+        page_icon="➗",
+        layout="wide",
+        initial_sidebar_state="collapsed"
+    )
+    
+    # Now it's safe to import backend modules
+    from backend.math_assistant import MathAssistant
+    
+    # Initialize all the components
+    initialize_styling()
+    initialize_session_state()
+    main()
 
-# === App Configuration ===
-st.set_page_config(
-    page_title="Math 127 Assistant",
-    page_icon="➗",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# === Custom CSS Styling ===
-st.markdown("""
-<style>
-    /* Base styling */
-    :root {
-        --primary: #3b82f6;       /* Blue */
-        --primary-dark: #2563eb;  /* Darker blue */
-        --secondary: #f97316;     /* Orange accent */
-        --neutral-50: #f8fafc;    /* Very light gray */
-        --neutral-100: #f1f5f9;   /* Light gray */
-        --neutral-200: #e2e8f0;   /* Medium-light gray */
-        --neutral-800: #1e293b;   /* Dark gray */
-        --radius: 10px;           /* Border radius */
-    }
-    
-    /* Main layout */
-    .main {
-        background-color: var(--neutral-50);
-        padding: 20px;
-    }
-    
-    /* Navigation breadcrumb */
-    .nav-breadcrumb {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        margin-bottom: 20px;
-        padding: 10px 0;
-        color: var(--neutral-800);
-        font-size: 14px;
-    }
-    
-    /* Headings */
-    h1 {
-        color: var(--neutral-800);
-        font-size: 36px !important;
-        font-weight: 700 !important;
-        margin-bottom: 20px !important;
-    }
-    
-    h2 {
-        color: var(--neutral-800);
-        font-size: 24px !important;
-        font-weight: 600 !important;
-        margin-bottom: 15px !important;
-    }
-    
-    /* Buttons */
-    .primary-button {
-        background-color: var(--primary);
-        color: white;
-        border: none;
-        border-radius: var(--radius);
-        padding: 12px 20px;
-        font-size: 16px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        width: 100%;
-        margin: 5px 0;
-        text-align: left;
-        display: flex;
-        align-items: center;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    }
-    
-    .primary-button:hover {
-        background-color: var(--primary-dark);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        transform: translateY(-1px);
-    }
-    
-    .secondary-button {
-        background-color: var(--neutral-100);
-        color: var(--neutral-800);
-        border: 1px solid var(--neutral-200);
-        border-radius: var(--radius);
-        padding: 10px 16px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    
-    .secondary-button:hover {
-        background-color: var(--neutral-200);
-    }
-    
-    /* Chat interface */
-    .chat-container {
-        background-color: var(--neutral-50);
-        border-radius: var(--radius);
-        padding: 20px;
-        margin-top: 20px;
-        height: 400px;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .user-message {
-        background-color: var(--primary);
-        color: white;
-        padding: 12px 16px;
-        border-radius: var(--radius);
-        margin: 10px 0;
-        max-width: 70%;
-        align-self: flex-end;
-    }
-
-    .bot-message {
-        background-color: var(--neutral-100);
-        color: var(--neutral-800);
-        padding: 12px 16px;
-        border-radius: var(--radius);
-        margin: 10px 0;
-        max-width: 70%;
-        align-self: flex-start;
-    }
-    
-    /* Cards */
-    .card {
-        background-color: white;
-        border-radius: var(--radius);
-        padding: 20px;
-        margin: 10px 0;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        transition: all 0.2s ease;
-        cursor: pointer; /* Shows hand cursor on hover */
-        color: #4a5568; /* Change this to your preferred text color */
-    }
+def initialize_styling():
+    # === Custom CSS Styling ===
+    st.markdown("""
+    <style>
+        /* Base styling */
+        :root {
+            --primary: #3b82f6;       /* Blue */
+            --primary-dark: #2563eb;  /* Darker blue */
+            --secondary: #f97316;     /* Orange accent */
+            --neutral-50: #f8fafc;    /* Very light gray */
+            --neutral-100: #f1f5f9;   /* Light gray */
+            --neutral-200: #e2e8f0;   /* Medium-light gray */
+            --neutral-800: #1e293b;   /* Dark gray */
+            --radius: 10px;           /* Border radius */
+        }
         
-    .card:hover {
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
-    }
-    
-    /* Icons */
-    .icon {
-        margin-right: 8px;
-    }
-    
-    /* Hide Streamlit elements */
-    #MainMenu, footer, header {
-        visibility: hidden;
-    }
-    
-    div.stButton > button {
-        background-color: transparent;
-        border: none;
-        padding: 0;
-        margin: 0;
-        box-shadow: none;
-        width: 100%;
-        height: 100%;
-    }
-    
-    div.stButton > button:hover {
-        background-color: transparent;
-        transform: none;
-    }
-    
-    /* Path indicator */
-    .path-indicator {
-        padding: 8px 16px;
-        border-radius: var(--radius);
-        background-color: var(--neutral-100);
-        font-size: 14px;
-        margin-bottom: 20px;
-        display: inline-block;
-    }
-</style>
-""", unsafe_allow_html=True)
+        /* Main layout */
+        .main {
+            background-color: var(--neutral-50);
+            padding: 20px;
+        }
+        
+        /* Navigation breadcrumb */
+        .nav-breadcrumb {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px 0;
+            color: var(--neutral-800);
+            font-size: 14px;
+        }
+        
+        /* Headings */
+        h1 {
+            color: var(--neutral-800);
+            font-size: 36px !important;
+            font-weight: 700 !important;
+            margin-bottom: 20px !important;
+        }
+        
+        h2 {
+            color: var(--neutral-800);
+            font-size: 24px !important;
+            font-weight: 600 !important;
+            margin-bottom: 15px !important;
+        }
+        
+        /* Buttons */
+        .primary-button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin: 5px 0;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .primary-button:hover {
+            background-color: var(--primary-dark);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transform: translateY(-1px);
+        }
+        
+        .secondary-button {
+            background-color: var(--neutral-100);
+            color: var(--neutral-800);
+            border: 1px solid var(--neutral-200);
+            border-radius: var(--radius);
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .secondary-button:hover {
+            background-color: var(--neutral-200);
+        }
+        
+        /* Chat interface */
+        .chat-container {
+            background-color: var(--neutral-50);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 20px;
+            height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
 
-st.markdown("""
-<style>
-    /* Style the button to look like a card */
-    div[data-testid="stButton"] > button {
-        background-color: white;
-        color: #4a5568;
-        border-radius: var(--radius);
-        padding: 20px;
-        margin: 10px 0;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        transition: all 0.2s ease;
-        text-align: left;
-        display: block;
-        width: 100%;
-    }
+        .user-message {
+            background-color: var(--primary);
+            color: white;
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            margin: 10px 0;
+            max-width: 70%;
+            align-self: flex-end;
+        }
 
-    div[data-testid="stButton"] > button:hover {
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
-        background-color: white; /* Keep white on hover */
-    }
+        .bot-message {
+            background-color: var(--neutral-100);
+            color: var(--neutral-800);
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            margin: 10px 0;
+            max-width: 70%;
+            align-self: flex-start;
+        }
+        
+        /* Cards */
+        .card {
+            background-color: white;
+            border-radius: var(--radius);
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+            cursor: pointer; /* Shows hand cursor on hover */
+            color: #4a5568; /* Change this to your preferred text color */
+        }
+            
+        .card:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        /* Icons */
+        .icon {
+            margin-right: 8px;
+        }
+        
+        /* Hide Streamlit elements */
+        #MainMenu, footer, header {
+            visibility: hidden;
+        }
+        
+        div.stButton > button {
+            background-color: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+            box-shadow: none;
+            width: 100%;
+            height: 100%;
+        }
+        
+        div.stButton > button:hover {
+            background-color: transparent;
+            transform: none;
+        }
+        
+        /* Path indicator */
+        .path-indicator {
+            padding: 8px 16px;
+            border-radius: var(--radius);
+            background-color: var(--neutral-100);
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    /* Fix the markdown styling inside buttons */
-    div[data-testid="stButton"] button h2, 
-    div[data-testid="stButton"] button h3 {
-        margin-top: 0;
-        color: #4a5568;
-    }
+    st.markdown("""
+    <style>
+        /* Style the button to look like a card */
+        div[data-testid="stButton"] > button {
+            background-color: white;
+            color: #4a5568;
+            border-radius: var(--radius);
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+            text-align: left;
+            display: block;
+            width: 100%;
+        }
 
-    div[data-testid="stButton"] button p {
-        color: #4a5568;
-    }
-</style>
-""", unsafe_allow_html=True)
+        div[data-testid="stButton"] > button:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+            background-color: white; /* Keep white on hover */
+        }
 
-# === Initialize session state ===
-if 'navigation_path' not in st.session_state:
-    st.session_state.navigation_path = []
+        /* Fix the markdown styling inside buttons */
+        div[data-testid="stButton"] button h2, 
+        div[data-testid="stButton"] button h3 {
+            margin-top: 0;
+            color: #4a5568;
+        }
 
-if 'current_chapter' not in st.session_state:
-    st.session_state.current_chapter = None
-    
-if 'current_section' not in st.session_state:
-    st.session_state.current_section = None
-    
-if 'current_question' not in st.session_state:
-    st.session_state.current_question = None
-    
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
-    
-if 'help_mode' not in st.session_state:
-    st.session_state.help_mode = None
-    
-if 'step_index' not in st.session_state:
-    st.session_state.step_index = 0
+        div[data-testid="stButton"] button p {
+            color: #4a5568;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Initialize MathAssistant in session state
-if 'assistant' not in st.session_state:
-    with st.spinner("🧠 Initializing AI Assistant..."):
-        st.session_state.assistant = MathAssistant()
+def initialize_session_state():
+    # === Initialize session state ===
+    if 'navigation_path' not in st.session_state:
+        st.session_state.navigation_path = []
+
+    if 'current_chapter' not in st.session_state:
+        st.session_state.current_chapter = None
+        
+    if 'current_section' not in st.session_state:
+        st.session_state.current_section = None
+        
+    if 'current_question' not in st.session_state:
+        st.session_state.current_question = None
+        
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+        
+    if 'help_mode' not in st.session_state:
+        st.session_state.help_mode = None
+        
+    if 'step_index' not in st.session_state:
+        st.session_state.step_index = 0
+
+    # Initialize MathAssistant in session state
+    if 'assistant' not in st.session_state:
+        # Now import and initialize the math assistant
+        from backend.math_assistant import MathAssistant
+        with st.spinner("🧠 Initializing AI Assistant..."):
+            st.session_state.assistant = MathAssistant()
 
 # === Navigation Function ===
 def navigate_to(destination, chapter=None, section=None, question=None, help_mode=None):
@@ -324,13 +333,9 @@ def render_home():
     with col2:
         st.markdown("<h2>FAQs</h2>", unsafe_allow_html=True)
         st.markdown("This assistant is designed to help you learn the material, not just get answers. It will guide you through problems step-by-step and help you understand the concepts.")
-    
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # === Render Sections Page ===
 def render_sections():
-    st.markdown("<div class='app-container'>", unsafe_allow_html=True)
-    
     render_breadcrumb()
     
     st.markdown(f"<h1>Chapter {st.session_state.current_chapter} Sections</h1>", unsafe_allow_html=True)
@@ -358,13 +363,9 @@ def render_sections():
     if st.button("← Back to Chapters", key="back_to_chapters"):
         navigate_to("home")
     st.markdown("</div>", unsafe_allow_html=True)
-    
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # === Render Questions Page ===
 def render_questions():
-    st.markdown("<div class='app-container'>", unsafe_allow_html=True)
-    
     render_breadcrumb()
     
     st.markdown(f"<h1>Section {st.session_state.current_section} Questions</h1>", unsafe_allow_html=True)
@@ -372,32 +373,12 @@ def render_questions():
     # Example questions for each section
     # In a real app, these would come from your database
     questions = [
-        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. (a) Use the derivative to find all critical points. x1 , x2 , and x3. (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. x1 = _ is (a local maximum / a local minimum / neither). ( _ refers to value of x). Answer it in that format. Do the same for x2 and x3",
+        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. Then, (a) Use the derivative to find all critical points. x1 , x2 , and x3. Then, (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. Express it as x1 = _ is (a local maximum / a local minimum / neither, where _ refers to value of x) Answer it in that format. Do the same for x2 and x3 ",
         "Solve the equation 2x² - 8x + 7 = 0",
         "Calculate the limit as x approaches 2 of (x² - 4)/(x - 2)",
         "Find the indefinite integral of g(x) = 5x⁴ - 3x² + 2x",
         "Determine if the series Σ(1/n²) from n=1 to infinity converges or diverges"
     ]
-    
-    # for i, question in enumerate(questions[:3]):  # Just show 3 questions for the demo
-    #     card_id = f"q_{i+1}"
-        
-    #     # Create unique key for this card
-    #     onclick_function = f"document.getElementById('button-{card_id}').click()"
-        
-    #     st.markdown(f"""
-    #     <div class='card' onclick="{onclick_function}" style="color: #4a5568;">
-    #         <h2>Question {i+1}</h2>
-    #         <p>{question}</p>
-    #     </div>
-    #     """, unsafe_allow_html=True)
-        
-    #     # Hidden button that will be triggered when card is clicked
-    #     if st.button("", key=f"button-{card_id}"):
-    #         navigate_to("questions", 
-    #             chapter=st.session_state.current_chapter, 
-    #             section=st.session_state.current_section,
-    #             question=i+1)
     
     for i, question in enumerate(questions[:3]):  # Just show 3 questions for the demo
         card_id = f"q_{i+1}"
@@ -406,7 +387,6 @@ def render_questions():
         
         # Use a container for styling
         with col1:
-            
             if st.button(f"Question {i+1}: {question}", key=card_id):
                 navigate_to("questions", 
                     chapter=st.session_state.current_chapter, 
@@ -417,20 +397,16 @@ def render_questions():
     if st.button("← Back to Sections", key="back_to_sections"):
         navigate_to("chapters", chapter=st.session_state.current_chapter)
     st.markdown("</div>", unsafe_allow_html=True)
-    
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # === Render Question Detail Page ===
 def render_question_detail():
-    st.markdown("<div class='app-container'>", unsafe_allow_html=True)
-    
     render_breadcrumb()
     
     question_num = st.session_state.current_question
     
     # Sample questions (in a real app, get this from your database)
     questions = [
-        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. (a) Use the derivative to find all critical points. x1 , x2 , and x3. (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. x1 = _ is (a local maximum / a local minimum / neither). ( _ refers to value of x). Answer it in that format. Do the same for x2 and x3",
+        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. Then, (a) Use the derivative to find all critical points. x1 , x2 , and x3. Then, (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. Express it as x1 = _ is (a local maximum / a local minimum / neither, where _ refers to value of x) Answer it in that format. Do the same for x2 and x3 ",
         "Solve the equation 2x² - 8x + 7 = 0",
         "Calculate the limit as x approaches 2 of (x² - 4)/(x - 2)",
         "Find the indefinite integral of g(x) = 5x⁴ - 3x² + 2x",
@@ -451,20 +427,9 @@ def render_question_detail():
     
     col1, col2, col3 = st.columns(3)
     
-    prompt1 = "I don't know where to start with this problem."
-    
     with col1:
-        
-        # if st.button(f"Question {i+1}: {question}", key=card_id):
-        #         navigate_to("questions", 
-        #             chapter=st.session_state.current_chapter, 
-        #             section=st.session_state.current_section,
-        #             question=i+1)
-        
-        # Create a container that looks like a card but is actually a button
         if st.button(
-            f"""I'm completely lost and I don't know where to start with this problem""", 
-            # These args customize the button to look like a card
+            """I'm completely lost and I don't know where to start with this problem""", 
             use_container_width=True
             ): 
             navigate_to("question_detail", 
@@ -472,53 +437,21 @@ def render_question_detail():
                       section=st.session_state.current_section,
                       question=question_num,
                       help_mode="Conceptual Help")
-        
-        # st.markdown("""
-        # <div class='card'>
-        #     <h3>I'm completely lost</h3>
-        #     <p>I don't know where to start with this problem.</p>
-        # </div>
-        # """, unsafe_allow_html=True)
-        
-        # if st.button("Get Conceptual Help", key="help_lost"):
-        #     navigate_to("question_detail", 
-        #               chapter=st.session_state.current_chapter,
-        #               section=st.session_state.current_section,
-        #               question=question_num,
-        #               help_mode="Conceptual Help")
             
     with col2:
-        
         if st.button(
-            f"""I know the concept but I'm not sure how to apply it to this problem""", 
-            # These args customize the button to look like a card
+            """I know the concept but I'm not sure how to apply it to this problem""", 
             use_container_width=True
             ): 
             navigate_to("question_detail", 
                       chapter=st.session_state.current_chapter,
                       section=st.session_state.current_section,
                       question=question_num,
-                      help_mode="Conceptual Help")
-        
-        # st.markdown("""
-        # <div class='card'>
-        #     <h3>I know the concept</h3>
-        #     <p>But I'm not sure how to apply it to this problem.</p>
-        # </div>
-        # """, unsafe_allow_html=True)
-        
-        # if st.button("Get Application Help", key="help_apply"):
-        #     navigate_to("question_detail", 
-        #               chapter=st.session_state.current_chapter,
-        #               section=st.session_state.current_section,
-        #               question=question_num,
-        #               help_mode="Application Help")
+                      help_mode="Application Help")
             
     with col3:
-        
         if st.button(
-            f"""I need step-by-step guidance to solve this problem""", 
-            # These args customize the button to look like a card
+            """I need step-by-step guidance to solve this problem""", 
             use_container_width=True
             ): 
             navigate_to("question_detail", 
@@ -526,28 +459,12 @@ def render_question_detail():
                       section=st.session_state.current_section,
                       question=question_num,
                       help_mode="Step-by-Step")
-        
-        # st.markdown("""
-        # <div class='card'>
-        #     <h3>I need step-by-step</h3>
-        #     <p>Guide me through solving this problem step by step.</p>
-        # </div>
-        # """, unsafe_allow_html=True)
-        
-        # if st.button("Get Step-by-Step Help", key="help_steps"):
-        #     navigate_to("question_detail", 
-        #               chapter=st.session_state.current_chapter,
-        #               section=st.session_state.current_section,
-        #               question=question_num,
-        #               help_mode="Step-by-Step")
     
     st.markdown("<div style='margin-top: 30px;'>", unsafe_allow_html=True)
     if st.button("← Back to Questions", key="back_to_questions"):
         navigate_to("sections", 
                   chapter=st.session_state.current_chapter,
                   section=st.session_state.current_section)
-    st.markdown("</div>", unsafe_allow_html=True)
-    
     st.markdown("</div>", unsafe_allow_html=True)
 
 # === AI Chat Interface (Integrated with MathAssistant) ===
@@ -559,7 +476,7 @@ def render_chat_interface():
     
     # Sample questions
     questions = [
-        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. (a) Use the derivative to find all critical points. x1 , x2 , and x3. (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. x1 = _ is (a local maximum / a local minimum / neither). ( _ refers to value of x). Answer it in that format. Do the same for x2 and x3",
+        "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. Then, (a) Use the derivative to find all critical points. x1 , x2 , and x3. Then, (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. Express it as x1 = _ is (a local maximum / a local minimum / neither, where _ refers to value of x) Answer it in that format. Do the same for x2 and x3 ",
         "Solve the equation 2x² - 8x + 7 = 0",
         "Calculate the limit as x approaches 2 of (x² - 4)/(x - 2)",
         "Find the indefinite integral of g(x) = 5x⁴ - 3x² + 2x",
@@ -668,6 +585,7 @@ def main():
         if st.button("Refresh PDF Database"):
             with st.spinner("🔄 Refreshing PDF database..."):
                 # Re-initialize the assistant
+                from backend.math_assistant import MathAssistant
                 st.session_state.assistant = MathAssistant()
                 st.success("✅ PDF database refreshed successfully!")
     
