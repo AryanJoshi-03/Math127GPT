@@ -5,6 +5,11 @@ import sys
 import time
 
 def run_frontend():
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    sys.path.append(parent_dir)
+    
     # IMPORTANT: This must be the first Streamlit command
     st.set_page_config(
         page_title="Math 127 Assistant",
@@ -496,19 +501,43 @@ def render_chat_interface():
     
     # Initialize first message if empty
     if len(st.session_state.chat_history) == 0:
+        # Get assistant from session state
+        assistant = st.session_state.assistant
+        
+        # Create automatic prompt based on help mode
         if help_mode == "Conceptual Help":
-            initial_message = "I understand you're feeling lost with this problem. Let's start by understanding the core concepts involved. What specific part is confusing you about this problem?"
+            auto_prompt = "explain what the question is asking me to do. Retrieve from PDF 4.1.1. DO NOT explain how to solve the question"
         elif help_mode == "Application Help":
-            initial_message = "Great, so you understand the basic concept but need help applying it to this specific problem. Let's break down how to approach this step by step."
+            auto_prompt = "Explain how to solve the question. Retrieve information from the 4.1.1 PDF, but DO NOT give the actual answer. Only explain."
         elif help_mode == "Step-by-Step":
-            initial_message = "Let's solve this step by step. First, let's understand what we're being asked to do in this problem."
+            auto_prompt = "Let's solve this step by step. First, explain what we're being asked to do in this problem."
         else:
-            initial_message = "How can I help you with this problem?"
+            auto_prompt = "How can I help you with this problem?"
+        
+        # Show loading message while getting the answer
+        with st.spinner("Getting initial information for you..."):
+            # For the query, combine the question with the auto prompt
+            query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
             
-        st.session_state.chat_history.append({
-            "role": "assistant",
-            "content": initial_message
-        })
+            # Get answer from the assistant
+            result = assistant.get_answer(query, help_mode)
+            
+            if result:
+                # Format the answer with sources
+                answer = result["answer"]
+                sources = result["sources"]
+                
+                if sources:
+                    source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                    answer = answer + source_text
+            else:
+                answer = "I'm sorry, I couldn't generate an answer for that question."
+            
+            # Add assistant message to chat history
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": answer
+            })
     
     # Display chat messages
     for message in st.session_state.chat_history:
@@ -606,4 +635,4 @@ def main():
         render_home()
 
 if __name__ == "__main__":
-    main()
+    run_frontend()
