@@ -258,6 +258,9 @@ def initialize_session_state():
         
     if 'step_index' not in st.session_state:
         st.session_state.step_index = 0
+        
+    if 'problem_steps' not in st.session_state:
+        st.session_state.problem_steps = []
 
     # Initialize MathAssistant in session state
     if 'assistant' not in st.session_state:
@@ -287,7 +290,10 @@ def navigate_to(destination, chapter=None, section=None, question=None, help_mod
         st.session_state.navigation_path.append(help_mode)
         # Reset chat history when starting a new help mode
         st.session_state.chat_history = []
+        
+        # Reset step-related variables
         st.session_state.step_index = 0
+        st.session_state.problem_steps = []
     
     st.rerun()
 
@@ -472,6 +478,488 @@ def render_question_detail():
                   section=st.session_state.current_section)
     st.markdown("</div>", unsafe_allow_html=True)
 
+# # === AI Chat Interface (Integrated with MathAssistant) ===
+# def render_chat_interface():
+#     render_breadcrumb()
+    
+#     question_num = st.session_state.current_question
+#     help_mode = st.session_state.help_mode
+    
+#     # Sample questions
+#     questions = [
+#         "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. Then, (a) Use the derivative to find all critical points. x1 , x2 , and x3. Then, (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. Express it as x1 = _ is (a local maximum / a local minimum / neither, where _ refers to value of x) Answer it in that format. Do the same for x2 and x3 ",
+#         "Solve the equation 2x² - 8x + 7 = 0",
+#         "Calculate the limit as x approaches 2 of (x² - 4)/(x - 2)",
+#         "Find the indefinite integral of g(x) = 5x⁴ - 3x² + 2x",
+#         "Determine if the series Σ(1/n²) from n=1 to infinity converges or diverges"
+#     ]
+    
+#     question = questions[question_num - 1] if question_num <= len(questions) else "Sample question"
+    
+#     st.markdown(f"<h1>{help_mode}</h1>", unsafe_allow_html=True)
+    
+#     st.markdown(f"""
+#     <div class='card'>
+#         <h3>Question {question_num}:</h3>
+#         <p>{question}</p>
+#     </div>
+#     """, unsafe_allow_html=True)
+    
+#     # Initialize first message if empty
+#     if len(st.session_state.chat_history) == 0:
+#         # Get assistant from session state
+#         assistant = st.session_state.assistant
+        
+#         # Create automatic prompt based on help mode
+#         if help_mode == "Conceptual Help":
+#             auto_prompt = "explain what the question is asking me to do. Retrieve from PDF 4.1.1. DO NOT explain how to solve the question"
+#         elif help_mode == "Application Help":
+#             auto_prompt = "Explain how to solve the question. Retrieve information from the 4.1.1 PDF, but DO NOT give the actual answer. Only explain."
+#         elif help_mode == "Step-by-Step":
+#             # For step-by-step mode, we want the assistant to identify steps but not solve them
+#             auto_prompt = "Break down this problem into clear, sequential steps that I need to complete. For each step, explain what I need to do, but don't solve it for me. I'll provide my solution for each step, and you'll verify if I'm correct. Let's start with step 1."
+            
+#             # Make sure step_index is set to 0 for starting
+#             st.session_state.step_index = 0
+#         else:
+#             auto_prompt = "How can I help you with this problem?"
+        
+#         # Show loading message while getting the answer
+#         with st.spinner("Getting initial information for you..."):
+#             # For the query, combine the question with the auto prompt
+#             query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
+            
+#             # Get answer from the assistant
+#             result = assistant.get_answer(query, help_mode)
+            
+#             if result:
+#                 # Format the answer with sources
+#                 answer = result["answer"]
+#                 sources = result["sources"]
+                
+#                 if sources:
+#                     source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+#                     answer = answer + source_text
+#             else:
+#                 answer = "I'm sorry, I couldn't generate an answer for that question."
+            
+#             # Add assistant message to chat history
+#             st.session_state.chat_history.append({
+#                 "role": "assistant",
+#                 "content": answer
+#             })
+    
+#     # Display chat messages
+#     for message in st.session_state.chat_history:
+#         if message["role"] == "user":
+#             st.markdown(f"<div class='user-message'>{message['content']}</div>", unsafe_allow_html=True)
+#         else:
+#             st.markdown(f"<div class='bot-message'>{message['content']}</div>", unsafe_allow_html=True)
+    
+#     # Input form
+#     with st.form(key="chat_form", clear_on_submit=True):
+#         user_input = st.text_input("Your response:", placeholder="Type your answer or question here...")
+#         submit_button = st.form_submit_button("Send")
+        
+#         if submit_button and user_input:
+#             # Add user message to chat
+#             st.session_state.chat_history.append({
+#                 "role": "user",
+#                 "content": user_input
+#             })
+            
+#             # Get assistant from session state
+#             assistant = st.session_state.assistant
+            
+#             # Different handling based on help mode
+#             if help_mode == "Step-by-Step":
+#                 # For step-by-step, we need to add information about which step we're on
+#                 # and that this is meant to verify the user's solution
+#                 query = f"""
+#                 Question: {question}
+#                 Current step: {st.session_state.step_index}
+#                 Student solution for current step: {user_input}
+#                 Help mode: {help_mode}
+                
+#                 Instructions for Step-by-Step mode:
+#                 1. Check if the student's solution for the current step is correct.
+#                 2. If correct, praise them, then increment the step counter and present the next step to solve.
+#                 3. If incorrect, kindly point out there's a mistake without giving away the answer, and ask them to try again.
+#                 4. If they ask a question instead of providing a solution, answer their question to guide them, but don't solve the step for them.
+#                 5. If they've completed all steps, congratulate them on solving the problem.
+#                 """
+#             else:
+#                 # Regular query format for other help modes
+#                 query = f"Question: {question}\nStudent input: {user_input}\nHelp mode: {help_mode}"
+            
+#             # Show typing indicator
+#             message_placeholder = st.empty()
+#             message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
+            
+#             # Get answer from the assistant
+#             result = assistant.get_answer(query, help_mode)
+            
+#             if result:
+#                 # Format the answer with sources
+#                 answer = result["answer"]
+#                 sources = result["sources"]
+                
+#                 # If this is a correct step in step-by-step mode, increment the step counter
+#                 if help_mode == "Step-by-Step" and "correct" in answer.lower() and "next step" in answer.lower():
+#                     st.session_state.step_index += 1
+                
+#                 if sources:
+#                     source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+#                     answer = answer + source_text
+#             else:
+#                 answer = "I'm sorry, I couldn't generate an answer for that question."
+            
+#             # Add assistant message to chat
+#             st.session_state.chat_history.append({
+#                 "role": "assistant",
+#                 "content": answer
+#             })
+            
+#             # Remove typing indicator and refresh
+#             message_placeholder.empty()
+#             st.rerun()
+    
+#     # Navigation button
+#     st.markdown("<div style='margin-top: 30px;'>", unsafe_allow_html=True)
+#     if st.button("← Change Help Mode", key="change_help"):
+#         # Reset chat when changing help mode
+#         st.session_state.chat_history = []
+#         st.session_state.step_index = 0
+#         # Explicitly clear help_mode
+#         st.session_state.help_mode = None
+#         navigate_to("questions", 
+#                 chapter=st.session_state.current_chapter,
+#                 section=st.session_state.current_section,
+#                 question=question_num)
+#     st.markdown("</div>", unsafe_allow_html=True)
+
+# # === AI Chat Interface (Integrated with MathAssistant) ===
+# def render_chat_interface():
+#     render_breadcrumb()
+    
+#     question_num = st.session_state.current_question
+#     help_mode = st.session_state.help_mode
+    
+#     # Sample questions
+#     questions = [
+#         "f(x) = x^4 - 32x^2. Enter the critical points in increasing order. Then, (a) Use the derivative to find all critical points. x1 , x2 , and x3. Then, (b) Use a graph to classify each critical point as a local minimum, a local maximum, or neither. Express it as x1 = _ is (a local maximum / a local minimum / neither, where _ refers to value of x) Answer it in that format. Do the same for x2 and x3 ",
+#         "Solve the equation 2x² - 8x + 7 = 0",
+#         "Calculate the limit as x approaches 2 of (x² - 4)/(x - 2)",
+#         "Find the indefinite integral of g(x) = 5x⁴ - 3x² + 2x",
+#         "Determine if the series Σ(1/n²) from n=1 to infinity converges or diverges"
+#     ]
+    
+#     question = questions[question_num - 1] if question_num <= len(questions) else "Sample question"
+    
+#     st.markdown(f"<h1>{help_mode}</h1>", unsafe_allow_html=True)
+    
+#     st.markdown(f"""
+#     <div class='card'>
+#         <h3>Question {question_num}:</h3>
+#         <p>{question}</p>
+#     </div>
+#     """, unsafe_allow_html=True)
+    
+#     # Define predefined steps for specific questions
+#     if question_num == 1:  # For question 1 (critical points question)
+#         predefined_steps = [
+#             "Find the derivative of f(x) = x^4 - 32x^2.",
+#             "Set the derivative equal to zero and solve for x.",
+#             "List all critical points in increasing order.",
+#             "For x = -4, classify whether it's a local maximum, local minimum, or neither.",
+#             "For x = 0, classify whether it's a local maximum, local minimum, or neither.",
+#             "For x = 4, classify whether it's a local maximum, local minimum, or neither."
+#         ]
+        
+#         # Answers for validation (for question 1)
+#         step_answers = {
+#             0: ["4x^3 - 64x", "4x^3-64x", "4x³ - 64x", "4x³-64x"],  # Multiple valid formats for derivative
+#             1: ["4x^3 - 64x = 0", "4x(x^2 - 16) = 0", "4x(x - 4)(x + 4) = 0"],  # Setting derivative to zero
+#             2: ["-4, 0, 4"],  # Critical points in increasing order
+#             3: ["local minimum", "minimum", "local min"],  # Classification for x = -4
+#             4: ["local maximum", "maximum", "local max"],  # Classification for x = 0
+#             5: ["local minimum", "minimum", "local min"]   # Classification for x = 4
+#         }
+        
+#         # Explanations for incorrect answers (for question 1)
+#         step_hints = {
+#             0: "When finding the derivative, remember to apply the power rule to each term. For x^4, the derivative is 4x^3, and for -32x^2, the derivative is -64x.",
+#             1: "To find critical points, set the derivative equal to zero and solve for x. Factor out common terms to make solving easier.",
+#             2: "Make sure you've found all values where the derivative equals zero, and list them in increasing order (from smallest to largest).",
+#             3: "To classify a critical point, look at the behavior of the function around that point. At x = -4, what happens to the function values as you approach from the left and from the right?",
+#             4: "At x = 0, examine what happens to the function values as x moves from negative to positive.",
+#             5: "Similar to the other points, at x = 4, determine what happens to the function values as you approach from the left and from the right."
+#         }
+#     else:
+#         # For other questions, we'll keep the dynamic approach
+#         predefined_steps = []
+#         step_answers = {}
+#         step_hints = {}
+    
+#     # Initialize first message if empty
+#     if len(st.session_state.chat_history) == 0:
+#         # Get assistant from session state
+#         assistant = st.session_state.assistant
+        
+#         # Create automatic prompt based on help mode
+#         if help_mode == "Conceptual Help":
+#             auto_prompt = "explain what the question is asking me to do. Retrieve from PDF 4.1.1. DO NOT explain how to solve the question"
+#         elif help_mode == "Application Help":
+#             auto_prompt = "Explain how to solve the question. Retrieve information from the 4.1.1 PDF, but DO NOT give the actual answer. Only explain."
+#         elif help_mode == "Step-by-Step":
+#             # For question 1 with predefined steps
+#             if question_num == 1 and len(predefined_steps) > 0:
+#                 # Initialize with the first step
+#                 st.session_state.step_index = 0
+                
+#                 # Store the predefined steps in session state for later use
+#                 st.session_state.problem_steps = predefined_steps
+                
+#                 # Use the first predefined step as the initial message
+#                 message = f"I'll guide you through solving this problem step by step. For each step, I'll ask you to provide your solution, and I'll check if you're on the right track.\n\n**Step 1:** {predefined_steps[0]}\n\nPlease provide your solution for this step."
+                
+#                 # Add assistant message to chat history
+#                 st.session_state.chat_history.append({
+#                     "role": "assistant",
+#                     "content": message
+#                 })
+                
+#                 # Exit the initialization block early since we've set up the first message
+#                 pass  # Using pass as a placeholder to exit the block
+#             else:
+#                 # For other questions or modes, use the dynamic approach
+#                 auto_prompt = "Break down this problem into clear, sequential steps that I need to complete. For each step, explain what I need to do, but don't solve it for me. I'll provide my solution for each step, and you'll verify if I'm correct. Let's start with step 1."
+#                 # Make sure step_index is set to 0 for starting
+#                 st.session_state.step_index = 0
+                
+#                 # Show loading message while getting the answer
+#                 with st.spinner("Getting initial information for you..."):
+#                     # For the query, combine the question with the auto prompt
+#                     query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
+                    
+#                     # Get answer from the assistant
+#                     result = assistant.get_answer(query, help_mode)
+                    
+#                     if result:
+#                         # Format the answer with sources
+#                         answer = result["answer"]
+#                         sources = result["sources"]
+                        
+#                         if sources:
+#                             source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+#                             answer = answer + source_text
+#                     else:
+#                         answer = "I'm sorry, I couldn't generate an answer for that question."
+                    
+#                     # Add assistant message to chat history
+#                     st.session_state.chat_history.append({
+#                         "role": "assistant",
+#                         "content": answer
+#                     })
+#         else:
+#             auto_prompt = "How can I help you with this problem?"
+            
+#             # Show loading message while getting the answer
+#             with st.spinner("Getting initial information for you..."):
+#                 # For the query, combine the question with the auto prompt
+#                 query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
+                
+#                 # Get answer from the assistant
+#                 result = assistant.get_answer(query, help_mode)
+                
+#                 if result:
+#                     # Format the answer with sources
+#                     answer = result["answer"]
+#                     sources = result["sources"]
+                    
+#                     if sources:
+#                         source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+#                         answer = answer + source_text
+#                 else:
+#                     answer = "I'm sorry, I couldn't generate an answer for that question."
+                
+#                 # Add assistant message to chat history
+#                 st.session_state.chat_history.append({
+#                     "role": "assistant",
+#                     "content": answer
+#                 })
+    
+#     # Display chat messages
+#     for message in st.session_state.chat_history:
+#         if message["role"] == "user":
+#             st.markdown(f"<div class='user-message'>{message['content']}</div>", unsafe_allow_html=True)
+#         else:
+#             st.markdown(f"<div class='bot-message'>{message['content']}</div>", unsafe_allow_html=True)
+    
+#     # Input form
+#     with st.form(key="chat_form", clear_on_submit=True):
+#         user_input = st.text_input("Your response:", placeholder="Type your answer or question here...")
+#         submit_button = st.form_submit_button("Send")
+        
+#         if submit_button and user_input:
+#             # Add user message to chat
+#             st.session_state.chat_history.append({
+#                 "role": "user",
+#                 "content": user_input
+#             })
+            
+#             # Get assistant from session state
+#             assistant = st.session_state.assistant
+            
+#             # Different handling based on help mode and question
+#             if help_mode == "Step-by-Step" and question_num == 1 and len(predefined_steps) > 0:
+#                 # For question 1 with predefined steps
+#                 current_step = st.session_state.step_index
+                
+#                 # Check if the user's answer is a question
+#                 is_question = user_input.strip().endswith("?")
+                
+#                 if is_question:
+#                     # Handle user questions by passing to the assistant
+#                     query = f"""
+#                     Question: {question}
+#                     User question: {user_input}
+#                     We are on step {current_step + 1}: {predefined_steps[current_step]}
+                    
+#                     Please answer their question to help guide them through this step, but don't give them the exact answer.
+#                     """
+                    
+#                     # Show typing indicator
+#                     message_placeholder = st.empty()
+#                     message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
+                    
+#                     # Get answer from the assistant
+#                     result = assistant.get_answer(query, help_mode)
+                    
+#                     if result:
+#                         answer = result["answer"]
+#                         sources = result["sources"]
+                        
+#                         if sources:
+#                             source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+#                             answer = answer + source_text
+#                     else:
+#                         answer = "I'm sorry, I couldn't generate guidance for that question."
+                    
+#                 else:
+#                     # Check if the answer is correct for this step
+#                     valid_answers = step_answers.get(current_step, [])
+#                     is_correct = False
+                    
+#                     # Normalize the input for comparison
+#                     normalized_input = user_input.strip().lower().replace(" ", "")
+                    
+#                     # Check against all valid answer formats
+#                     for valid_answer in valid_answers:
+#                         normalized_valid = valid_answer.strip().lower().replace(" ", "")
+#                         if normalized_input == normalized_valid or normalized_valid in normalized_input:
+#                             is_correct = True
+#                             break
+                    
+#                     if is_correct:
+#                         # Move to the next step if the answer is correct
+#                         st.session_state.step_index += 1
+#                         next_step = st.session_state.step_index
+                        
+#                         if next_step < len(predefined_steps):
+#                             answer = f"Correct! Great job.\n\n**Step {next_step + 1}:** {predefined_steps[next_step]}\n\nPlease provide your solution for this step."
+#                         else:
+#                             answer = "Congratulations! You've successfully completed all steps of this problem. You've shown a good understanding of finding and classifying critical points."
+#                     else:
+#                         # Provide a hint if the answer is wrong
+#                         hint = step_hints.get(current_step, "Try checking your work and try again.")
+#                         answer = f"That's not quite right. {hint}\n\nLet's try again. **Step {current_step + 1}:** {predefined_steps[current_step]}"
+            
+#             elif help_mode == "Step-by-Step":
+#                 # For other questions, use the dynamic approach
+#                 query = f"""
+#                 Question: {question}
+#                 Current step: {st.session_state.step_index}
+#                 Student solution for current step: {user_input}
+#                 Help mode: {help_mode}
+                
+#                 Instructions for Step-by-Step mode:
+#                 1. Check if the student's solution for the current step is correct.
+#                 2. If correct, praise them, then increment the step counter and present the next step to solve.
+#                 3. If incorrect, kindly point out there's a mistake without giving away the answer, and ask them to try again.
+#                 4. If they ask a question instead of providing a solution, answer their question to guide them, but don't solve the step for them.
+#                 5. If they've completed all steps, congratulate them on solving the problem.
+#                 """
+                
+#                 # Show typing indicator
+#                 message_placeholder = st.empty()
+#                 message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
+                
+#                 # Get answer from the assistant
+#                 result = assistant.get_answer(query, help_mode)
+                
+#                 if result:
+#                     # Format the answer with sources
+#                     answer = result["answer"]
+#                     sources = result["sources"]
+                    
+#                     # If this is a correct step in step-by-step mode, increment the step counter
+#                     if "correct" in answer.lower() and "next step" in answer.lower():
+#                         st.session_state.step_index += 1
+                    
+#                     if sources:
+#                         source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+#                         answer = answer + source_text
+#                 else:
+#                     answer = "I'm sorry, I couldn't generate an answer for that question."
+            
+#             else:
+#                 # Regular query format for other help modes
+#                 query = f"Question: {question}\nStudent input: {user_input}\nHelp mode: {help_mode}"
+                
+#                 # Show typing indicator
+#                 message_placeholder = st.empty()
+#                 message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
+                
+#                 # Get answer from the assistant
+#                 result = assistant.get_answer(query, help_mode)
+                
+#                 if result:
+#                     # Format the answer with sources
+#                     answer = result["answer"]
+#                     sources = result["sources"]
+                    
+#                     if sources:
+#                         source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+#                         answer = answer + source_text
+#                 else:
+#                     answer = "I'm sorry, I couldn't generate an answer for that question."
+            
+#             # Add assistant message to chat history
+#             st.session_state.chat_history.append({
+#                 "role": "assistant",
+#                 "content": answer
+#             })
+            
+#             # Remove typing indicator and refresh
+#             if 'message_placeholder' in locals():
+#                 message_placeholder.empty()
+#             st.rerun()
+    
+#     # Navigation button
+#     st.markdown("<div style='margin-top: 30px;'>", unsafe_allow_html=True)
+#     if st.button("← Change Help Mode", key="change_help"):
+#         # Reset chat when changing help mode
+#         st.session_state.chat_history = []
+#         st.session_state.step_index = 0
+#         # Explicitly clear help_mode
+#         st.session_state.help_mode = None
+#         navigate_to("questions", 
+#                 chapter=st.session_state.current_chapter,
+#                 section=st.session_state.current_section,
+#                 question=question_num)
+#     st.markdown("</div>", unsafe_allow_html=True)
+
 # === AI Chat Interface (Integrated with MathAssistant) ===
 def render_chat_interface():
     render_breadcrumb()
@@ -499,6 +987,42 @@ def render_chat_interface():
     </div>
     """, unsafe_allow_html=True)
     
+    # Define predefined steps for specific questions
+    if question_num == 1 and help_mode == "Step-by-Step":  # For question 1 (critical points question)
+        predefined_steps = [
+            "Find the derivative of f(x) = x^4 - 32x^2.",
+            "Set the derivative equal to zero and solve for x.",
+            "List all critical points in increasing order.",
+            "For x = -4, classify whether it's a local maximum, local minimum, or neither.",
+            "For x = 0, classify whether it's a local maximum, local minimum, or neither.",
+            "For x = 4, classify whether it's a local maximum, local minimum, or neither."
+        ]
+        
+        # Answers for validation (for question 1)
+        step_answers = {
+            0: ["4x^3 - 64x", "4x^3-64x", "4x³ - 64x", "4x³-64x"],  # Multiple valid formats for derivative
+            1: ["4x^3 - 64x = 0", "4x(x^2 - 16) = 0", "4x(x - 4)(x + 4) = 0"],  # Setting derivative to zero
+            2: ["-4, 0, 4"],  # Critical points in increasing order
+            3: ["local minimum", "minimum", "local min"],  # Classification for x = -4
+            4: ["local maximum", "maximum", "local max"],  # Classification for x = 0
+            5: ["local minimum", "minimum", "local min"]   # Classification for x = 4
+        }
+        
+        # Explanations for incorrect answers (for question 1)
+        step_hints = {
+            0: "When finding the derivative, remember to apply the power rule to each term. For x^4, the derivative is 4x^3, and for -32x^2, the derivative is -64x.",
+            1: "To find critical points, set the derivative equal to zero and solve for x. Factor out common terms to make solving easier.",
+            2: "Make sure you've found all values where the derivative equals zero, and list them in increasing order (from smallest to largest).",
+            3: "To classify a critical point, look at the behavior of the function around that point. At x = -4, what happens to the function values as you approach from the left and from the right?",
+            4: "At x = 0, examine what happens to the function values as x moves from negative to positive.",
+            5: "Similar to the other points, at x = 4, determine what happens to the function values as you approach from the left and from the right."
+        }
+    else:
+        # For other questions or modes, no predefined steps
+        predefined_steps = []
+        step_answers = {}
+        step_hints = {}
+    
     # Initialize first message if empty
     if len(st.session_state.chat_history) == 0:
         # Get assistant from session state
@@ -507,37 +1031,135 @@ def render_chat_interface():
         # Create automatic prompt based on help mode
         if help_mode == "Conceptual Help":
             auto_prompt = "explain what the question is asking me to do. Retrieve from PDF 4.1.1. DO NOT explain how to solve the question"
+            
+            # Show loading message while getting the answer
+            with st.spinner("Getting initial information for you..."):
+                # For the query, combine the question with the auto prompt
+                query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
+                
+                # Get answer from the assistant
+                result = assistant.get_answer(query, help_mode)
+                
+                if result:
+                    # Format the answer with sources
+                    answer = result["answer"]
+                    sources = result["sources"]
+                    
+                    if sources:
+                        source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                        answer = answer + source_text
+                else:
+                    answer = "I'm sorry, I couldn't generate an answer for that question."
+                
+                # Add assistant message to chat history
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": answer
+                })
+                
         elif help_mode == "Application Help":
             auto_prompt = "Explain how to solve the question. Retrieve information from the 4.1.1 PDF, but DO NOT give the actual answer. Only explain."
+            
+            # Show loading message while getting the answer
+            with st.spinner("Getting initial information for you..."):
+                # For the query, combine the question with the auto prompt
+                query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
+                
+                # Get answer from the assistant
+                result = assistant.get_answer(query, help_mode)
+                
+                if result:
+                    # Format the answer with sources
+                    answer = result["answer"]
+                    sources = result["sources"]
+                    
+                    if sources:
+                        source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                        answer = answer + source_text
+                else:
+                    answer = "I'm sorry, I couldn't generate an answer for that question."
+                
+                # Add assistant message to chat history
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": answer
+                })
+                
         elif help_mode == "Step-by-Step":
-            auto_prompt = "Let's solve this step by step. First, explain what we're being asked to do in this problem."
+            # For question 1 with predefined steps
+            if question_num == 1 and len(predefined_steps) > 0:
+                # Initialize with the first step
+                st.session_state.step_index = 0
+                
+                # Store the predefined steps in session state for later use
+                st.session_state.problem_steps = predefined_steps
+                
+                # Use the first predefined step as the initial message
+                message = f"I'll guide you through solving this problem step by step. For each step, I'll ask you to provide your solution, and I'll check if you're on the right track.\n\n**Step 1:** {predefined_steps[0]}\n\nPlease provide your solution for this step."
+                
+                # Add assistant message to chat history
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": message
+                })
+            else:
+                # For other questions, use the dynamic approach
+                auto_prompt = "Break down this problem into clear, sequential steps that I need to complete. For each step, explain what I need to do, but don't solve it for me. I'll provide my solution for each step, and you'll verify if I'm correct. Let's start with step 1."
+                
+                # Make sure step_index is set to 0 for starting
+                st.session_state.step_index = 0
+                
+                # Show loading message while getting the answer
+                with st.spinner("Getting initial information for you..."):
+                    # For the query, combine the question with the auto prompt
+                    query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
+                    
+                    # Get answer from the assistant
+                    result = assistant.get_answer(query, help_mode)
+                    
+                    if result:
+                        # Format the answer with sources
+                        answer = result["answer"]
+                        sources = result["sources"]
+                        
+                        if sources:
+                            source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                            answer = answer + source_text
+                    else:
+                        answer = "I'm sorry, I couldn't generate an answer for that question."
+                    
+                    # Add assistant message to chat history
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": answer
+                    })
         else:
             auto_prompt = "How can I help you with this problem?"
-        
-        # Show loading message while getting the answer
-        with st.spinner("Getting initial information for you..."):
-            # For the query, combine the question with the auto prompt
-            query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
             
-            # Get answer from the assistant
-            result = assistant.get_answer(query, help_mode)
-            
-            if result:
-                # Format the answer with sources
-                answer = result["answer"]
-                sources = result["sources"]
+            # Show loading message while getting the answer
+            with st.spinner("Getting initial information for you..."):
+                # For the query, combine the question with the auto prompt
+                query = f"Question: {question}\nStudent input: {auto_prompt}\nHelp mode: {help_mode}"
                 
-                if sources:
-                    source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
-                    answer = answer + source_text
-            else:
-                answer = "I'm sorry, I couldn't generate an answer for that question."
-            
-            # Add assistant message to chat history
-            st.session_state.chat_history.append({
-                "role": "assistant",
-                "content": answer
-            })
+                # Get answer from the assistant
+                result = assistant.get_answer(query, help_mode)
+                
+                if result:
+                    # Format the answer with sources
+                    answer = result["answer"]
+                    sources = result["sources"]
+                    
+                    if sources:
+                        source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                        answer = answer + source_text
+                else:
+                    answer = "I'm sorry, I couldn't generate an answer for that question."
+                
+                # Add assistant message to chat history
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": answer
+                })
     
     # Display chat messages
     for message in st.session_state.chat_history:
@@ -561,35 +1183,139 @@ def render_chat_interface():
             # Get assistant from session state
             assistant = st.session_state.assistant
             
-            # For the query, combine the question with the user's input
-            query = f"Question: {question}\nStudent input: {user_input}\nHelp mode: {help_mode}"
-            
-            # Show typing indicator
-            message_placeholder = st.empty()
-            message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
-            
-            # Get answer from the assistant
-            result = assistant.get_answer(query, help_mode)
-            
-            if result:
-                # Format the answer with sources
-                answer = result["answer"]
-                sources = result["sources"]
+            # Different handling based on help mode and question
+            if help_mode == "Step-by-Step" and question_num == 1 and len(predefined_steps) > 0:
+                # For question 1 with predefined steps
+                current_step = st.session_state.step_index
                 
-                if sources:
-                    source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
-                    answer = answer + source_text
-            else:
-                answer = "I'm sorry, I couldn't generate an answer for that question."
+                # Check if the user's answer is a question
+                is_question = user_input.strip().endswith("?")
+                
+                if is_question:
+                    # Handle user questions by passing to the assistant
+                    query = f"""
+                    Question: {question}
+                    User question: {user_input}
+                    We are on step {current_step + 1}: {predefined_steps[current_step]}
+                    
+                    Please answer their question to help guide them through this step, but don't give them the exact answer.
+                    """
+                    
+                    # Show typing indicator
+                    message_placeholder = st.empty()
+                    message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
+                    
+                    # Get answer from the assistant
+                    result = assistant.get_answer(query, help_mode)
+                    
+                    if result:
+                        answer = result["answer"]
+                        sources = result["sources"]
+                        
+                        if sources:
+                            source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                            answer = answer + source_text
+                    else:
+                        answer = "I'm sorry, I couldn't generate guidance for that question."
+                    
+                else:
+                    # Check if the answer is correct for this step
+                    valid_answers = step_answers.get(current_step, [])
+                    is_correct = False
+                    
+                    # Normalize the input for comparison
+                    normalized_input = user_input.strip().lower().replace(" ", "")
+                    
+                    # Check against all valid answer formats
+                    for valid_answer in valid_answers:
+                        normalized_valid = valid_answer.strip().lower().replace(" ", "")
+                        if normalized_input == normalized_valid or normalized_valid in normalized_input:
+                            is_correct = True
+                            break
+                    
+                    if is_correct:
+                        # Move to the next step if the answer is correct
+                        st.session_state.step_index += 1
+                        next_step = st.session_state.step_index
+                        
+                        if next_step < len(predefined_steps):
+                            answer = f"Correct! Great job.\n\n**Step {next_step + 1}:** {predefined_steps[next_step]}\n\nPlease provide your solution for this step."
+                        else:
+                            answer = "Congratulations! You've successfully completed all steps of this problem. You've shown a good understanding of finding and classifying critical points."
+                    else:
+                        # Provide a hint if the answer is wrong
+                        hint = step_hints.get(current_step, "Try checking your work and try again.")
+                        answer = f"That's not quite right. {hint}\n\nLet's try again. **Step {current_step + 1}:** {predefined_steps[current_step]}"
             
-            # Add assistant message to chat
+            elif help_mode == "Step-by-Step":
+                # For other questions using step-by-step mode, use the dynamic approach
+                query = f"""
+                Question: {question}
+                Current step: {st.session_state.step_index}
+                Student solution for current step: {user_input}
+                Help mode: {help_mode}
+                
+                Instructions for Step-by-Step mode:
+                1. Check if the student's solution for the current step is correct.
+                2. If correct, praise them, then increment the step counter and present the next step to solve.
+                3. If incorrect, kindly point out there's a mistake without giving away the answer, and ask them to try again.
+                4. If they ask a question instead of providing a solution, answer their question to guide them, but don't solve the step for them.
+                5. If they've completed all steps, congratulate them on solving the problem.
+                """
+                
+                # Show typing indicator
+                message_placeholder = st.empty()
+                message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
+                
+                # Get answer from the assistant
+                result = assistant.get_answer(query, help_mode)
+                
+                if result:
+                    # Format the answer with sources
+                    answer = result["answer"]
+                    sources = result["sources"]
+                    
+                    # If this is a correct step in step-by-step mode, increment the step counter
+                    if "correct" in answer.lower() and "next step" in answer.lower():
+                        st.session_state.step_index += 1
+                    
+                    if sources:
+                        source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                        answer = answer + source_text
+                else:
+                    answer = "I'm sorry, I couldn't generate an answer for that question."
+            
+            else:
+                # Regular query format for Conceptual Help and Application Help modes
+                query = f"Question: {question}\nStudent input: {user_input}\nHelp mode: {help_mode}"
+                
+                # Show typing indicator
+                message_placeholder = st.empty()
+                message_placeholder.markdown("<div class='bot-message'>Thinking...</div>", unsafe_allow_html=True)
+                
+                # Get answer from the assistant
+                result = assistant.get_answer(query, help_mode)
+                
+                if result:
+                    # Format the answer with sources
+                    answer = result["answer"]
+                    sources = result["sources"]
+                    
+                    if sources:
+                        source_text = "\n\n**Sources:**\n" + "\n".join([f"- {source}" for source in sources])
+                        answer = answer + source_text
+                else:
+                    answer = "I'm sorry, I couldn't generate an answer for that question."
+            
+            # Add assistant message to chat history
             st.session_state.chat_history.append({
                 "role": "assistant",
                 "content": answer
             })
             
             # Remove typing indicator and refresh
-            message_placeholder.empty()
+            if 'message_placeholder' in locals():
+                message_placeholder.empty()
             st.rerun()
     
     # Navigation button
@@ -605,6 +1331,7 @@ def render_chat_interface():
                 section=st.session_state.current_section,
                 question=question_num)
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 # === Main Routing Logic ===
 def main():
