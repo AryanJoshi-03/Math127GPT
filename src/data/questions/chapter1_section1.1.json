@@ -1,0 +1,33 @@
+{
+    "section_name": "1.1",
+    "questions": [
+        {
+            "id": "1.1.1",
+            "text": "Find the critical points of f(x) = x^4 - 32x^2.",
+            "type": "critical_points",
+            "steps": [
+                {
+                    "instruction": "Find the derivative of f(x).",
+                    "hint": "Use the power rule.",
+                    "format": "ax^n + bx^m",
+                    "placeholder": "e.g., 4x^3 - 64x",
+                    "valid_answers": ["4x^3 - 64x", "4x^3-64x"]
+                },
+                {
+                    "instruction": "Set the derivative equal to zero and solve for x.",
+                    "hint": "Factor the equation.",
+                    "format": "List all solutions.",
+                    "placeholder": "e.g., -4, 0, 4",
+                    "valid_answers": ["-4, 0, 4", "-4,0,4"]
+                },
+                {
+                    "instruction": "Classify each critical point as a local minimum, maximum, or neither.",
+                    "hint": "Use the second derivative test or analyze the graph.",
+                    "format": "x = value is (local minimum/maximum/neither)",
+                    "placeholder": "e.g., x = -4 is local minimum",
+                    "valid_answers": ["x = -4 is local minimum", "x = 0 is local maximum", "x = 4 is local minimum"]
+                }
+            ]
+        }
+    ]
+} 
