@@ -5,12 +5,13 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Add the project directory to the Python path
+# Add the project directory and its parent to the Python path
 project_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(project_dir)
+parent_dir = os.path.dirname(project_dir)
+sys.path.extend([project_dir, parent_dir])
 
 # Import the Streamlit frontend
-from frontend.main import run_frontend
+from frontend.updated_frontend import run_frontend
 
 if __name__ == "__main__":
     print("🚀 Starting Math Assistant...")

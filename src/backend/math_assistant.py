@@ -1,4 +1,5 @@
 # backend/math_assistant.py
+import math
 import os
 import streamlit as st
 from dotenv import load_dotenv
@@ -131,30 +132,8 @@ class MathAssistant:
                 search_kwargs={"k": 3}  # Return top 3 most relevant chunks
             )
             
-            # Enhanced prompts based on help mode
-            if help_mode == "Conceptual Help":
-                custom_prompt = """The student needs help understanding a concept.
-                Explain the question's goal and core concept clearly.
-                Break down the fundamental ideas in simple terms.
-                Use analogies where helpful.
-                Question: {query}
-                """
-            elif help_mode == "Application Help":
-                custom_prompt = """The student understands the basic concept but needs help applying it.
-                Explain how to connect the dots between theory and application.
-                Provide a step-by-step approach to solve this type of problem.
-                Identify key insights needed to make progress.
-                Question: {query}
-                """
-            elif help_mode == "Step-by-Step":
-                custom_prompt = """The student wants a detailed, step-by-step explanation.
-                Break down the solution into precise, sequential steps.
-                Explain the reasoning behind each step.
-                Highlight important techniques and strategies.
-                Question: {query}
-                """
-            else:
-                custom_prompt = "Please provide a detailed and helpful answer to the following question: {query}"
+            # The query from the frontend already contains all necessary instructions and context
+            enhanced_query = query
             
             # Use more capable model for better answers
             llm = ChatOpenAI(
@@ -172,12 +151,15 @@ class MathAssistant:
             )
             
             with st.spinner("🤔 Generating answer..."):
-                enhanced_query = custom_prompt.format(query=query)
                 result = qa_chain({"query": enhanced_query})
             
             answer = result["result"]
             sources = [doc.metadata.get("source", "Unknown") for doc in result["source_documents"]]
             unique_sources = list(set(sources))
+            
+            # Post-process the answer to ensure no direct solutions are given
+            if "answer" in answer.lower() or "solution" in answer.lower():
+                answer = "I can help guide you through this, but I won't provide the direct answer. Let me explain the concepts and steps instead."
             
             return {
                 "answer": answer,
@@ -186,3 +168,97 @@ class MathAssistant:
         except Exception as e:
             st.error(f"❌ Failed to get answer: {str(e)}")
             return None
+
+    def generate_similar_question(self, original_question, question_type=None):
+        """Generate a similar math question using LLM"""
+        OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+        try:
+            if not OPENAI_API_KEY:
+                return "Could not generate similar question due to missing API key."
+    
+            # Enhanced prompt specifically for math problems
+            prompt = """
+            Generate a similar math problem to the following, but with different numbers, 
+            variables, or slight variations in the scenario. The new problem should:
+            1. Test the same mathematical concepts and skills
+            2. Have approximately the same difficulty level
+            3. Be clearly stated and unambiguous
+            4. Have a different solution than the original
+            5. Maintain the same mathematical structure and operations
+            6. Keep the same question format and style
+            7. If this is a {question_type} type question, maintain the same step structure
+    
+            Original Question: {question}
+    
+            New Similar Question:
+            """
+    
+            # Use a direct call to OpenAI API
+            llm = ChatOpenAI(
+                openai_api_key=OPENAI_API_KEY, 
+                model_name="gpt-3.5-turbo",  # Consider gpt-4 if available
+                temperature=0.7  # Good for creativity while maintaining structure
+            )
+    
+            # Format the prompt with the original question and type
+            formatted_prompt = prompt.format(
+                question=original_question,
+                question_type=question_type if question_type else "general"
+            )
+    
+            # Get the response from the LLM
+            response = llm.invoke(formatted_prompt)
+    
+            # Extract the generated question from the response
+            similar_question = response.content.strip()
+    
+            # If the response is too long, trim it
+            if len(similar_question) > 1000:
+                similar_question = similar_question[:1000] + "..."
+        
+            return similar_question
+    
+        except Exception as e:
+            st.error(f"❌ Failed to generate similar question: {str(e)}")
+        
+            # Enhanced fallback with better mathematical integrity
+            try:
+                import re
+                import random
+            
+                # More sophisticated number replacement
+                def replace_number(match):
+                    num = float(match.group(0))
+                    # Keep the same order of magnitude but change the value
+                    magnitude = max(1, 10 ** int(math.log10(abs(num))) if num != 0 else 1)
+                
+                    # Generate a new number with the same general magnitude
+                    if abs(num) < 1:
+                        new_num = round(random.uniform(0.1, 0.9) * (1 if num > 0 else -1), 2)
+                    else:
+                        new_num = round(random.uniform(0.7, 1.3) * num, 2)
+                    
+                    # Make sure it's different from original
+                    if new_num == num:
+                        new_num = num + (0.1 * magnitude if num > 0 else -0.1 * magnitude)
+                
+                    # Return as integer if original was integer
+                    if num.is_integer():
+                        return str(int(new_num))
+                    return str(new_num)
+            
+                # Replace numbers in the question
+                modified_question = re.sub(r'-?\d+(\.\d+)?', replace_number, original_question)
+            
+                # Also replace variable names in some cases
+                var_mapping = {'x': ['y', 'z', 't'], 'y': ['x', 'z', 'w'], 'f': ['g', 'h', 'F']}
+                for old_var, new_vars in var_mapping.items():
+                    if old_var in original_question:
+                        modified_question = modified_question.replace(old_var, random.choice(new_vars))
+            
+                return modified_question
+            
+            except Exception as nested_e:
+                # Ultimate fallback if everything else fails
+                return f"Unable to generate a similar question. Please try again. Error: {str(nested_e)}"
