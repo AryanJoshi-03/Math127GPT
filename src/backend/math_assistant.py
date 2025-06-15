@@ -132,36 +132,8 @@ class MathAssistant:
                 search_kwargs={"k": 3}  # Return top 3 most relevant chunks
             )
             
-            # Enhanced prompts based on help mode
-            if help_mode == "Conceptual Help":
-                custom_prompt = """The student needs help understanding a concept.
-                Explain the question's goal and core concept clearly.
-                Break down the fundamental ideas in simple terms.
-                Use analogies where helpful.
-                IMPORTANT: DO NOT provide the solution or answer to the question.
-                Question: {query}
-                """
-            elif help_mode == "Application Help":
-                custom_prompt = """The student understands the basic concept but needs help applying it.
-                Explain how to connect the dots between theory and application.
-                Provide a step-by-step approach to solve this type of problem.
-                Identify key insights needed to make progress.
-                IMPORTANT: DO NOT provide the solution or answer to the question.
-                Question: {query}
-                """
-            elif help_mode == "Step-by-Step":
-                custom_prompt = """The student wants a detailed, step-by-step explanation.
-                Break down the solution into precise, sequential steps.
-                Explain the reasoning behind each step.
-                Highlight important techniques and strategies.
-                IMPORTANT: DO NOT provide the solution or answer to the question.
-                Question: {query}
-                """
-            else:
-                custom_prompt = """Please provide a detailed and helpful answer to the following question.
-                IMPORTANT: DO NOT provide the solution or answer to the question.
-                Question: {query}
-                """
+            # The query from the frontend already contains all necessary instructions and context
+            enhanced_query = query
             
             # Use more capable model for better answers
             llm = ChatOpenAI(
@@ -179,7 +151,6 @@ class MathAssistant:
             )
             
             with st.spinner("🤔 Generating answer..."):
-                enhanced_query = custom_prompt.format(query=query)
                 result = qa_chain({"query": enhanced_query})
             
             answer = result["result"]
