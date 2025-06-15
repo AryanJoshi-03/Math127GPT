@@ -5,6 +5,15 @@
             "id": "1.1.1",
             "text": "Find the critical points of f(x) = x^4 - 32x^2.",
             "type": "critical_points",
+            "generic_steps": [
+                {
+                    "instruction": "First, identify what type of problem this is and what concepts you need to apply.",
+                    "hint": "Look for keywords in the question that indicate what mathematical concepts are involved.",
+                    "format": "Write a brief explanation of what type of problem this is.",
+                    "placeholder": "e.g., This is a derivative problem where I need to find critical points...",
+                    "valid_answers": ["any response that shows understanding of the problem type"]
+                }
+            ],
             "steps": [
                 {
                     "instruction": "Find the derivative of f(x).",
@@ -27,6 +36,12 @@
                     "placeholder": "e.g., x = -4 is local minimum",
                     "valid_answers": ["x = -4 is local minimum", "x = 0 is local maximum", "x = 4 is local minimum"]
                 }
+            ],
+            "generic_hints": [
+                "First, identify what type of problem this is and what concepts you need to apply.",
+                "Write down the given function or equation exactly as shown.",
+                "Apply the necessary mathematical operations to solve the problem.",
+                "Verify your answer makes sense in the context of the problem."
             ]
         }
     ]
